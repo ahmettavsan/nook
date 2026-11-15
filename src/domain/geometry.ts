@@ -1,5 +1,5 @@
-import { CARD_H, CARD_W, GAP, HEAD, MIN_GAP, PAD, STACK_OFFSETS } from './constants';
-import { stackMap, stackOf } from './stacks';
+import { CARD_H, CARD_W, MIN_GAP, STACK_OFFSETS } from './constants';
+import { stackMap } from './stacks';
 import type { Board, Clip, Item } from './types';
 
 /*
@@ -59,8 +59,6 @@ export function adoptLooseCards(board: Board, gid: string): void {
   for (const it of Object.values(board.items)) if (!roomOf(board, it) && anchorInside(it, g)) it.room = gid;
 }
 
-const columnsOf = (w: number) => Math.max(1, Math.floor((w - PAD * 2 + GAP) / (CARD_W + GAP)));
-
 interface Box {
   x: number;
   y: number;
@@ -96,35 +94,10 @@ const clear = (a: Box, b: Box) =>
   a.y + a.h + MIN_GAP <= b.y;
 
 /**
- * First free grid slot in a room. Grows the room if the slot lies below its bottom edge.
- * `exceptId` is the card being placed; it and its alternatives do not count as obstacles.
- */
-export function freeSlot(board: Board, gid: string, exceptId?: string): { x: number; y: number } {
-  const g = board.groups[gid];
-  const cols = columnsOf(g.w);
-  const skip = new Set(exceptId ? stackOf(board, exceptId)?.ids || [exceptId] : []);
-  const others = [...cardBoxes(board)].filter(([id]) => !skip.has(id)).map(([, b]) => b);
-  for (let r = 0; r < 60; r++) {
-    for (let c = 0; c < cols; c++) {
-      const x = g.x + PAD + c * (CARD_W + GAP);
-      const y = g.y + HEAD + PAD + r * (CARD_H + GAP);
-      const slot = { x, y, w: CARD_W, h: CARD_H };
-      if (others.every((o) => clear(slot, o))) {
-        const need = y + CARD_H + PAD - g.y;
-        if (need > g.h) g.h = need;
-        return { x, y };
-      }
-    }
-  }
-  return { x: g.x + PAD, y: g.y + g.h };
-}
-
-/**
- * Puts a dropped or newly created card where it does not touch any other card: it keeps its spot when
- * that is already clear, otherwise it moves to the nearest position at least `MIN_GAP` away from every
- * other card. Inside a room it also stays clear of the title line and within the side walls, and the
- * room grows if the card pokes out the bottom. `ids` move together (a whole stack); `pid` is the lead
- * card. Returns true when the cards were moved.
+ * Puts a card dropped or created outside rooms where it does not touch any other card: it keeps its
+ * spot when that is already clear, otherwise it moves to the nearest position at least `MIN_GAP` away
+ * from every other card. (Cards in rooms sit in the room's grid instead, see domain/arrange.ts.)
+ * `ids` move together (a whole stack); `pid` is the lead card. Returns true when the cards were moved.
  */
 export function settleCard(board: Board, ids: Iterable<string>, pid: string): boolean {
   const it = board.items[pid];
@@ -140,12 +113,7 @@ export function settleCard(board: Board, ids: Iterable<string>, pid: string): bo
   if (!parts.length) parts.push({ dx: 0, dy: 0 });
   const obstacles = [...boxes].filter(([i]) => !moving.has(i)).map(([, b]) => b);
 
-  const gid = roomOf(board, it);
-  const g = gid ? board.groups[gid] : null;
-  const minX = g ? g.x + PAD : -Infinity;
-  const maxX = g ? Math.max(minX, g.x + g.w - PAD - CARD_W) : Infinity;
-  const minY = g ? g.y + HEAD + PAD : -Infinity;
-  const want = { x: Math.round(Math.min(Math.max(it.x, minX), maxX)), y: Math.round(Math.max(it.y, minY)) };
+  const want = { x: Math.round(it.x), y: Math.round(it.y) };
 
   const fits = (x: number, y: number) =>
     parts.every((p) => {
@@ -156,14 +124,9 @@ export function settleCard(board: Board, ids: Iterable<string>, pid: string): bo
   let best = want;
   if (!fits(want.x, want.y)) {
     // The nearest clear spot lines up with an edge of some card (plus the gap) on at least one axis,
-    // so those edges, the wanted position and the room walls are the only candidates worth testing.
+    // so those edges and the wanted position are the only candidates worth testing.
     const xs = new Set([want.x]);
     const ys = new Set([want.y]);
-    if (g) {
-      xs.add(minX);
-      xs.add(maxX);
-      ys.add(minY);
-    }
     for (const o of obstacles) {
       for (const p of parts) {
         xs.add(Math.ceil(o.x + o.w + MIN_GAP - p.dx));
@@ -174,9 +137,7 @@ export function settleCard(board: Board, ids: Iterable<string>, pid: string): bo
     }
     const candidates: { x: number; y: number; d: number }[] = [];
     for (const x of xs) {
-      if (x < minX || x > maxX) continue;
       for (const y of ys) {
-        if (y < minY) continue;
         candidates.push({ x, y, d: Math.hypot(x - want.x, y - want.y) });
       }
     }
@@ -195,87 +156,7 @@ export function settleCard(board: Board, ids: Iterable<string>, pid: string): bo
       }
     }
   }
-  if (g) {
-    const need = best.y + CARD_H + PAD - g.y;
-    if (need > g.h) g.h = Math.round(need);
-  }
   return !!(dx || dy);
-}
-
-/**
- * The smallest size a room can be resized to (from its bottom-right corner) without dropping any of
- * its cards: every card that belongs to it keeps the usual padding to the walls. A card can only leave
- * a room by being deleted or dragged out, never because the room shrank.
- */
-export function roomMinSize(board: Board, gid: string): { w: number; h: number } {
-  const g = board.groups[gid];
-  let w = CARD_W + PAD * 2;
-  let h = HEAD + 90;
-  if (!g) return { w, h };
-  const boxes = cardBoxes(board);
-  for (const [id, it] of Object.entries(board.items)) {
-    const b = boxes.get(id);
-    if (!b || it.room !== gid) continue;
-    // A card that already pokes out (older boards) must not make the room jump bigger.
-    w = Math.max(w, Math.min(b.x + b.w + PAD - g.x, g.w));
-    h = Math.max(h, Math.min(b.y + b.h + PAD - g.y, g.h));
-  }
-  return { w: Math.ceil(w), h: Math.ceil(h) };
-}
-
-export interface ResizeLimits {
-  min: { w: number; h: number };
-  /** Other rooms the resized room must not grow into, with the gap to keep from each. */
-  blockers: (Box & { gapX: number; gapY: number; right: boolean; below: boolean })[];
-}
-
-const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-
-/** What a room may be resized to, computed once when the resize starts. */
-export function resizeLimits(board: Board, gid: string): ResizeLimits {
-  const g = board.groups[gid];
-  const blockers: ResizeLimits['blockers'] = [];
-  for (const [id, o] of Object.entries(board.groups)) {
-    // Rooms that already overlap (older boards) are left alone rather than locking the resize.
-    if (id === gid || overlaps(g, o)) continue;
-    const right = o.x >= g.x + g.w;
-    const below = o.y >= g.y + g.h;
-    blockers.push({
-      ...o,
-      right,
-      below,
-      gapX: right ? Math.min(MIN_GAP, o.x - (g.x + g.w)) : 0,
-      gapY: below ? Math.min(MIN_GAP, o.y - (g.y + g.h)) : 0,
-    });
-  }
-  return { min: roomMinSize(board, gid), blockers };
-}
-
-/**
- * Size for a room being resized from its bottom-right corner: never smaller than its cards need and
- * never grown into another room (it stops at that room's edge instead).
- */
-export function clampRoomSize(
-  g: { x: number; y: number },
-  w: number,
-  h: number,
-  { min, blockers }: ResizeLimits,
-): { w: number; h: number } {
-  w = Math.max(min.w, w);
-  h = Math.max(min.h, h);
-  for (let pass = 0; pass < 2; pass++) {
-    for (const b of blockers) {
-      if (!overlaps({ x: g.x, y: g.y, w, h }, b)) continue;
-      const wFix = b.right ? b.x - b.gapX - g.x : -1;
-      const hFix = b.below ? b.y - b.gapY - g.y : -1;
-      const wOk = wFix >= min.w;
-      const hOk = hFix >= min.h;
-      // Give up as little of the requested size as possible.
-      if (wOk && (!hOk || w - wFix <= h - hFix)) w = wFix;
-      else if (hOk) h = hFix;
-    }
-  }
-  return { w: Math.round(w), h: Math.round(h) };
 }
 
 /** Axis-aligned box around a (possibly rotated) clip. */

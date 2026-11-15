@@ -1,15 +1,9 @@
 import { useEffect, type RefObject } from 'react';
 import { CARD_H, CARD_W, GAP, HEAD, PAD, ZOOM_MAX, ZOOM_MIN } from '../domain/constants';
 import { clamp } from '../domain/format';
-import {
-  adoptLooseCards,
-  assignRoom,
-  clampRoomSize,
-  membersOf,
-  resizeLimits,
-  settleCard,
-  type ResizeLimits,
-} from '../domain/geometry';
+import { colsForWidth } from '../domain/arrange';
+import { adoptLooseCards, assignRoom, membersOf, roomAt, roomOf, settleCard } from '../domain/geometry';
+import { layoutSnapshot, restoreLayout, type LayoutSnapshot } from '../domain/layout';
 import { stackMap, stackOf } from '../domain/stacks';
 import type { Board, Clip, View } from '../domain/types';
 import {
@@ -20,7 +14,9 @@ import {
   createItemAt,
   joinStack,
   cancelClip,
+  markTipSeen,
   openCompare,
+  openMenu,
   openDrawer,
   placeClip,
   selectClip,
@@ -54,27 +50,38 @@ type Drag =
   | (Base & {
       kind: 'item';
       id: string;
+      /** The card's room when the drag started. */
+      room: string;
       back: boolean;
       /** ⌘ (or Ctrl) was held: a click opens the side-by-side view of the stack. */
       compare: boolean;
       ids: Set<string>;
       orig: Map<string, Pos>;
     })
-  | (Base & { kind: 'group'; id: string; ids: Set<string>; orig: Map<string, Pos> })
+  | (Base & {
+      kind: 'group';
+      id: string;
+      ids: Set<string>;
+      orig: Map<string, Pos>;
+      /** The board's layout when the drag started: rooms pushed aside go back once the room moves on. */
+      start: LayoutSnapshot;
+    })
   | (Base & {
       kind: 'resize';
       id: string;
       ids: Set<string>;
+      /** Width and number of columns when the resize started. */
       ow: number;
-      oh: number;
-      limits: ResizeLimits;
+      cols: number;
+      start: LayoutSnapshot;
     })
   | (Base & { kind: 'draw'; wx: number; wy: number; cx: number; cy: number })
   | (Base & { kind: 'place' })
   | (Base & { kind: 'pan'; vx: number; vy: number });
 
 /** Overlays living inside the viewport that must not start board gestures. */
-const OVERLAYS = '.zoom,.drawer,.empty-card,.statbar,.toast,.fpanel,.quick-pay,.compare,.clip-bar';
+const OVERLAYS =
+  '.zoom,.drawer,.empty-card,.statbar,.toast,.fpanel,.quick-pay,.compare,.clip-bar,.ctx-menu,.tip';
 
 /** Smallest side a cut-out can be resized to. */
 const CLIP_MIN = 40;
@@ -116,12 +123,21 @@ export function useCanvasGestures(ref: RefObject<HTMLElement | null>): void {
         return;
       }
       if (e.button === 2) {
+        // Right-click opens a menu for what is under the pointer: a card, a room or the empty board.
+        if (target.closest('.clip')) return;
         const card = target.closest<HTMLElement>('.tag');
-        if (card && getState().tool === 'select')
-          void startClip(card.dataset.id!, toWorld(e.clientX, e.clientY));
+        const room = target.closest<HTMLElement>('.room');
+        const at = local(e);
+        openMenu({
+          x: at.x,
+          y: at.y,
+          at: toWorld(e.clientX, e.clientY),
+          kind: card ? 'card' : room ? 'room' : 'board',
+          id: (card || room)?.dataset.id,
+        });
         return;
       }
-      if (target.closest('.pill-btn,.stk')) return;
+      if (target.closest('.pill-btn,.stk,.room-add')) return;
       pointers.set(e.pointerId, local(e));
       try {
         vp!.setPointerCapture(e.pointerId);
@@ -178,6 +194,7 @@ export function useCanvasGestures(ref: RefObject<HTMLElement | null>): void {
             ...base,
             kind: 'item',
             id,
+            room: board.items[id].room,
             back: tag.classList.contains('back'),
             compare: e.metaKey || e.ctrlKey,
             ids: new Set(all),
@@ -193,15 +210,22 @@ export function useCanvasGestures(ref: RefObject<HTMLElement | null>): void {
               id: gid,
               ids: new Set([gid]),
               ow: g.w,
-              oh: g.h,
-              limits: resizeLimits(board, gid),
+              cols: g.cols,
+              start: layoutSnapshot(board),
             };
           } else {
             // Only the room's own cards travel with it, never the cards of a room it passes over.
             const inside = membersOf(board, gid);
             const orig = new Map<string, Pos>([[gid, { x: g.x, y: g.y }]]);
             for (const i of inside) orig.set(i, { x: board.items[i].x, y: board.items[i].y });
-            drag = { ...base, kind: 'group', id: gid, ids: new Set([gid, ...inside]), orig };
+            drag = {
+              ...base,
+              kind: 'group',
+              id: gid,
+              ids: new Set([gid, ...inside]),
+              orig,
+              start: layoutSnapshot(board),
+            };
           }
         }
         return;
@@ -259,16 +283,29 @@ export function useCanvasGestures(ref: RefObject<HTMLElement | null>): void {
         case 'item':
         case 'group': {
           const { orig } = drag;
-          updateBoard((b) => {
-            for (const [id, o] of orig) {
-              const obj = b.items[id] || b.groups[id];
-              if (!obj) continue;
-              obj.x = Math.round(o.x + dx);
-              obj.y = Math.round(o.y + dy);
-            }
-          });
-          if (drag.kind === 'item')
-            setState({ dropTarget: findDropTarget(getState().board, drag.id, drag.ids) });
+          const start = drag.kind === 'group' ? drag.start : null;
+          updateBoard(
+            (b) => {
+              // A dragged room pushes the others aside from where they were, so they slide back when it moves on.
+              if (start) restoreLayout(b, start);
+              for (const [id, o] of orig) {
+                const obj = b.items[id] || b.groups[id];
+                if (!obj) continue;
+                obj.x = Math.round(o.x + dx);
+                obj.y = Math.round(o.y + dy);
+              }
+            },
+            drag.kind === 'group' ? drag.id : undefined,
+          );
+          // The cards left behind close up, and pushed rooms slide, while the dragged ones follow the pointer.
+          animateLayout();
+          if (drag.kind === 'item') {
+            // Light up what the card would join if dropped now: another card's stack, or another room.
+            const board = getState().board;
+            const target = findDropTarget(board, drag.id, drag.ids);
+            const into = !target && board.items[drag.id] ? roomAt(board, board.items[drag.id]) : null;
+            setState({ dropTarget: target, dropRoom: into && into !== drag.room ? into : null });
+          }
           break;
         }
         case 'clip': {
@@ -313,12 +350,15 @@ export function useCanvasGestures(ref: RefObject<HTMLElement | null>): void {
           break;
         }
         case 'resize': {
-          const { id, ow, oh, limits } = drag;
+          // Dragging the corner sideways picks the number of columns; the height follows the cards.
+          const { id, ow, start } = drag;
+          const cols = colsForWidth(ow + dx);
+          if (getState().board.groups[id]?.cols === cols) break;
           updateBoard((b) => {
-            const g = b.groups[id];
-            if (!g) return;
-            Object.assign(g, clampRoomSize(g, ow + dx, oh + dy, limits));
-          });
+            restoreLayout(b, start);
+            if (b.groups[id]) b.groups[id].cols = cols;
+          }, id);
+          animateLayout();
           break;
         }
         case 'draw': {
@@ -350,31 +390,29 @@ export function useCanvasGestures(ref: RefObject<HTMLElement | null>): void {
           });
       } else if (d.kind === 'item' || d.kind === 'group' || d.kind === 'resize') {
         const target = getState().dropTarget;
-        setState({ dropTarget: null, draggingIds: null });
+        setState({ dropTarget: null, dropRoom: null, draggingIds: null });
         if (d.moved && cancelled) {
           // Interrupted (second finger, system gesture): put everything back where it started.
           updateBoard((b) => {
-            if (d.kind === 'resize') {
-              if (b.groups[d.id]) Object.assign(b.groups[d.id], { w: d.ow, h: d.oh });
+            if (d.kind === 'item') {
+              for (const [id, o] of d.orig) if (b.items[id]) Object.assign(b.items[id], o);
               return;
             }
-            for (const [id, o] of d.orig) {
-              const obj = b.items[id] || b.groups[id];
-              if (obj) Object.assign(obj, o);
-            }
+            restoreLayout(b, d.start);
+            if (d.kind === 'resize' && b.groups[d.id]) b.groups[d.id].cols = d.cols;
           });
         } else if (d.moved && d.kind === 'item') {
           if (target && !cancelled) joinStack(d.ids, target);
           else {
-            let settled = false;
+            // In a room the card takes the grid slot where it was dropped; outside it just keeps clear of others.
             updateBoard((b) => {
               assignRoom(b, d.ids, d.id);
-              settled = settleCard(b, d.ids, d.id);
+              if (!roomOf(b, b.items[d.id])) settleCard(b, d.ids, d.id);
             });
-            if (settled) animateLayout();
+            animateLayout();
           }
         } else if (d.moved && (d.kind === 'group' || d.kind === 'resize')) {
-          updateBoard((b) => adoptLooseCards(b, d.id));
+          updateBoard((b) => adoptLooseCards(b, d.id), d.id);
         }
         if (!d.moved && !cancelled) {
           if (d.kind === 'item' && d.compare && stackOf(getState().board, d.id)) openCompare(d.id);
@@ -427,10 +465,14 @@ export function useCanvasGestures(ref: RefObject<HTMLElement | null>): void {
     function onDblClick(e: MouseEvent) {
       // Pointer capture retargets the click to the viewport, so look up what is really under the pointer.
       const target = document.elementFromPoint(e.clientX, e.clientY) || (e.target as Element);
-      if (target.closest('.pill-btn,.stk,.clip,' + OVERLAYS)) return;
+      if (target.closest('.pill-btn,.stk,.clip,.room-add,' + OVERLAYS)) return;
       // Double-clicking a card cuts its photo out instead of creating a new card.
       const card = target.closest<HTMLElement>('.tag');
       if (card) {
+        // A card that has just appeared under the pointer came from the first click (the empty room's
+        // "Eşya ekle"), not from a double-click on it.
+        const it = getState().board.items[card.dataset.id!];
+        if (it && Date.now() - it.createdAt < 800) return;
         if (getState().tool === 'select') void startClip(card.dataset.id!, toWorld(e.clientX, e.clientY));
         return;
       }
@@ -438,12 +480,13 @@ export function useCanvasGestures(ref: RefObject<HTMLElement | null>): void {
       const w = toWorld(e.clientX, e.clientY);
       const id = createItemAt(w.x - CARD_W / 2, w.y - 30);
       setState({ blank: true });
+      markTipSeen();
       openDrawer('item', id, 'name');
     }
 
-    // Right-clicking a card cuts its photo out, so the browser menu would only get in the way.
+    // The board has its own right-click menu; the browser's stays for the panels (copying text, etc.).
     function onContextMenu(e: MouseEvent) {
-      if ((e.target as Element).closest('.tag,.clip') || getState().clipDraft) e.preventDefault();
+      if (!(e.target as Element).closest(OVERLAYS)) e.preventDefault();
     }
 
     function onWheel(e: WheelEvent) {

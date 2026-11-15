@@ -10,22 +10,18 @@ import {
   emptyBoard,
   moveToRoom,
 } from './board';
-import { CARD_H, CARD_W, GAP, HEAD, MIN_GAP, PAD } from './constants';
+import { CARD_H, CARD_W, GAP, HEAD, MIN_GAP, PAD, ROOM_GAP } from './constants';
 import { parseNum, total } from './format';
+import { arrange, endOfRoom, layoutRooms, roomWidth } from './arrange';
 import {
   adoptLooseCards,
   assignRoom,
   bounds,
   cardBoxes,
-  clampRoomSize,
   clipBounds,
-  freeSlot,
   membersOf,
-  resizeLimits,
   roomAt,
-  roomMinSize,
   roomOf,
-  settleCard,
 } from './geometry';
 import { layoutSnapshot, restoreLayout, tidy } from './layout';
 import { buildTemplate } from './template';
@@ -58,40 +54,6 @@ describe('geometry', () => {
     });
     expect(roomAt(b, { x: 150, y: 250 })).toBe(small);
     expect(roomAt(b, { x: 5000, y: 5000 })).toBeNull();
-  });
-
-  it('pushes a card dropped on the room title below the header', () => {
-    let id = '';
-    const b = boardWith((d) => {
-      createGroup(d, 0, 0, 632, 312);
-      id = createItem(d, 40, 10);
-    });
-    expect(b.items[id].y).toBe(HEAD + PAD);
-  });
-
-  it('grows the room when the next free slot is below it', () => {
-    let gid = '';
-    const b = boardWith((d) => {
-      gid = createGroup(d, 0, 0, PAD * 2 + CARD_W, HEAD + 90);
-      freeSlot(d, gid);
-    });
-    expect(b.groups[gid].h).toBeGreaterThan(HEAD + 90);
-  });
-
-  it('moves a card dropped onto another one to the nearest spot with a gap', () => {
-    let a = '';
-    let c = '';
-    const b = boardWith((d) => {
-      createGroup(d, 0, 0, 700, 400);
-      a = createItem(d, PAD, HEAD + PAD);
-      c = createItem(d, 400, HEAD + PAD);
-      // dropped onto `a`, partly over the room title, leaning towards the next column
-      d.items[c].x = PAD + 60;
-      d.items[c].y = HEAD;
-      settleCard(d, [c], c);
-    });
-    expect(b.items[c]).toMatchObject({ x: PAD + CARD_W + MIN_GAP, y: HEAD + PAD });
-    expect(b.items[a]).toMatchObject({ x: PAD, y: HEAD + PAD });
   });
 
   it('keeps cards apart outside rooms too', () => {
@@ -239,82 +201,187 @@ describe('room membership', () => {
   });
 });
 
-describe('room resizing', () => {
-  it('cannot shrink a room past its cards', () => {
-    let gid = '';
-    const b = boardWith((d) => {
-      gid = createGroup(d, 0, 0, 1000, 800);
-      createItem(d, 500, 300);
+describe('rooms sized by their cards', () => {
+  /** Applies a change the way `updateBoard` does: the change, then the room rules. */
+  const step = (board: Board, fn: (d: Board) => void, root?: string) =>
+    produce(board, (d) => {
+      fn(d);
+      arrange(d, board, null, root);
     });
-    expect(roomMinSize(b, gid)).toEqual({ w: 500 + CARD_W + PAD, h: 300 + CARD_H + PAD });
+  const slot = (g: { x: number; y: number }, col: number, row: number) => ({
+    x: g.x + PAD + col * (CARD_W + GAP),
+    y: g.y + HEAD + PAD + row * (CARD_H + GAP),
+  });
+  const heightFor = (rows: number) => HEAD + PAD * 2 + rows * CARD_H + (rows - 1) * GAP;
+  /** True when no two rooms are closer than ROOM_GAP. */
+  const apart = (b: Board) =>
+    Object.values(b.groups).every((p, i, all) =>
+      all
+        .slice(i + 1)
+        .every(
+          (q) =>
+            p.x >= q.x + q.w + ROOM_GAP ||
+            q.x >= p.x + p.w + ROOM_GAP ||
+            p.y >= q.y + q.h + ROOM_GAP ||
+            q.y >= p.y + p.h + ROOM_GAP,
+        ),
+    );
+
+  it('lines the cards up in the grid and is exactly as big as it', () => {
+    let gid = '';
+    const ids: string[] = [];
+    const b = step(emptyBoard(), (d) => {
+      gid = createGroup(d, 0, 0, roomWidth(2), 300);
+      ids.push(createItem(d, 30, 400, { room: gid }), createItem(d, 300, 150), createItem(d, 10, 120));
+    });
+    const g = b.groups[gid];
+    expect(g.cols).toBe(2);
+    expect(b.items[ids[2]]).toMatchObject(slot(g, 0, 0));
+    expect(b.items[ids[1]]).toMatchObject(slot(g, 1, 0));
+    expect(b.items[ids[0]]).toMatchObject(slot(g, 0, 1));
+    expect(g).toMatchObject({ w: roomWidth(2), h: heightFor(2) });
   });
 
-  it('counts the alternatives peeking out behind a stack', () => {
+  it('keeps one empty row when it has no cards', () => {
     let gid = '';
-    const b = boardWith((d) => {
-      gid = createGroup(d, 0, 0, 1000, 800);
-      const front = createItem(d, 500, 300);
-      addAlternative(d, front);
+    const b = step(emptyBoard(), (d) => {
+      gid = createGroup(d, 0, 0, 1000, 900);
     });
-    expect(roomMinSize(b, gid).w).toBe(500 + 24 + CARD_W + PAD);
+    expect(b.groups[gid]).toMatchObject({ cols: 4, w: roomWidth(4), h: heightFor(1) });
   });
 
-  it('ignores cards of other rooms and loose cards', () => {
+  it('grows when a card is added and shrinks when one is deleted, closing the gap', () => {
     let gid = '';
-    const b = boardWith((d) => {
-      gid = createGroup(d, 0, 0, 700, 500);
-      createItem(d, 2000, 2000);
+    const ids: string[] = [];
+    const one = step(emptyBoard(), (d) => {
+      gid = createGroup(d, 0, 0, roomWidth(2), 300);
+      ids.push(createItem(d, 20, 120), createItem(d, 300, 120));
     });
-    expect(roomMinSize(b, gid)).toEqual({ w: CARD_W + PAD * 2, h: HEAD + 90 });
+    expect(one.groups[gid].h).toBe(heightFor(1));
+    const two = step(one, (d) => {
+      const end = endOfRoom(d.groups[gid]);
+      ids.push(createItem(d, end.x, end.y, { room: gid }));
+    });
+    expect(two.groups[gid].h).toBe(heightFor(2));
+    const back = step(two, (d) => deleteItem(d, ids[0]));
+    expect(back.groups[gid].h).toBe(heightFor(1));
+    expect(back.items[ids[1]]).toMatchObject(slot(back.groups[gid], 0, 0));
+    expect(back.items[ids[2]]).toMatchObject(slot(back.groups[gid], 1, 0));
   });
 
-  it('stops growing at a neighbouring room, keeping a gap', () => {
+  it('puts a dropped card between the two cards it was dropped between', () => {
+    let gid = '';
+    const ids: string[] = [];
+    const b = step(emptyBoard(), (d) => {
+      gid = createGroup(d, 0, 0, roomWidth(3), 300);
+      for (let i = 0; i < 3; i++) ids.push(createItem(d, PAD + i * (CARD_W + GAP), HEAD + PAD));
+    });
+    let dropped = '';
+    const s = step(b, (d) => {
+      dropped = createItem(d, PAD + CARD_W / 2 + 20, HEAD + PAD + 30);
+    });
+    const g = s.groups[gid];
+    expect(s.items[ids[0]]).toMatchObject(slot(g, 0, 0));
+    expect(s.items[dropped]).toMatchObject(slot(g, 1, 0));
+    expect(s.items[ids[1]]).toMatchObject(slot(g, 2, 0));
+    expect(s.items[ids[2]]).toMatchObject(slot(g, 0, 1));
+  });
+
+  it('reflows the cards when the number of columns changes', () => {
+    let gid = '';
+    const ids: string[] = [];
+    const b = step(emptyBoard(), (d) => {
+      gid = createGroup(d, 0, 0, roomWidth(3), 300);
+      for (let i = 0; i < 3; i++) ids.push(createItem(d, PAD + i * (CARD_W + GAP), HEAD + PAD));
+    });
+    const s = step(b, (d) => {
+      d.groups[gid].cols = 1;
+    });
+    const g = s.groups[gid];
+    expect(g).toMatchObject({ w: roomWidth(1), h: heightFor(3) });
+    ids.forEach((id, i) => expect(s.items[id]).toMatchObject(slot(g, 0, i)));
+  });
+
+  it('leaves out the cards being dragged until they are dropped', () => {
+    let gid = '';
+    const ids: string[] = [];
+    const b = step(emptyBoard(), (d) => {
+      gid = createGroup(d, 0, 0, roomWidth(1), 300);
+      ids.push(createItem(d, PAD, HEAD + PAD), createItem(d, PAD, 2000, { room: gid }));
+    });
+    const held = produce(b, (d) => {
+      d.items[ids[0]].x = 5000;
+      layoutRooms(d, new Set([ids[0]]));
+    });
+    expect(held.items[ids[0]].x).toBe(5000);
+    expect(held.items[ids[1]]).toMatchObject(slot(held.groups[gid], 0, 0));
+    expect(held.groups[gid].h).toBe(heightFor(1));
+  });
+
+  it('pushes a room another room is moved onto, cards and all, keeping the gap', () => {
     let a = '';
-    const b = boardWith((d) => {
-      a = createGroup(d, 0, 0, 500, 400);
-      createGroup(d, 600, 0, 500, 400); // to the right
-      createGroup(d, 0, 500, 500, 400); // below
-    });
-    const limits = resizeLimits(b, a);
-    expect(clampRoomSize(b.groups[a], 900, 300, limits)).toEqual({ w: 600 - MIN_GAP, h: 300 });
-    expect(clampRoomSize(b.groups[a], 400, 800, limits)).toEqual({ w: 400, h: 500 - MIN_GAP });
-    expect(clampRoomSize(b.groups[a], 550, 450, limits)).toEqual({ w: 550, h: 450 });
-  });
-
-  it('never lets a grown room swallow a card of another room', () => {
-    let a = '';
-    let other = '';
+    let c = '';
     let card = '';
-    const b = boardWith((d) => {
-      a = createGroup(d, 0, 0, 500, 400);
-      other = createGroup(d, 700, 0, 900, 900);
-      card = createItem(d, 720, HEAD + PAD);
+    const b = step(emptyBoard(), (d) => {
+      a = createGroup(d, 0, 0, roomWidth(2), 300);
+      c = createGroup(d, 1000, 0, roomWidth(2), 300);
+      card = createItem(d, 1000 + PAD, HEAD + PAD);
     });
-    const size = clampRoomSize(b.groups[a], 2000, 2000, resizeLimits(b, a));
-    const grown = produce(b, (d) => {
-      Object.assign(d.groups[a], size);
-    });
-    expect(roomAt(grown, grown.items[card])).toBe(other);
-    expect(grown.items[card].room).toBe(other);
+    const s = step(
+      b,
+      (d) => {
+        d.groups[a].x = 900;
+      },
+      a,
+    );
+    expect(s.groups[a].x).toBe(900);
+    expect(apart(s)).toBe(true);
+    expect(s.items[card]).toMatchObject(slot(s.groups[c], 0, 0));
   });
 
-  it('ignores rooms that already overlapped before the resize', () => {
-    let a = '';
-    const b = boardWith((d) => {
-      a = createGroup(d, 0, 0, 500, 400);
-      createGroup(d, 300, 300, 500, 400);
+  it('passes a push on to the next room', () => {
+    const ids: string[] = [];
+    const w = roomWidth(1);
+    const b = step(emptyBoard(), (d) => {
+      for (let i = 0; i < 3; i++) ids.push(createGroup(d, i * (w + ROOM_GAP), 0, w, 300));
     });
-    expect(clampRoomSize(b.groups[a], 900, 900, resizeLimits(b, a))).toEqual({ w: 900, h: 900 });
+    const s = step(
+      b,
+      (d) => {
+        d.groups[ids[0]].x += 120;
+      },
+      ids[0],
+    );
+    expect(apart(s)).toBe(true);
+    expect(s.groups[ids[2]].x).toBeGreaterThan(b.groups[ids[2]].x);
   });
 
-  it('does not force a room to grow when a card already pokes out', () => {
-    let gid = '';
-    const b = boardWith((d) => {
-      gid = createGroup(d, 0, 0, 600, 400);
-      const id = createItem(d, 100, 150);
-      d.items[id].x = 600 - CARD_W / 2 - 10; // anchor still inside, body over the right wall
+  it('pushes the room below away when a room grows into it', () => {
+    let top = '';
+    let below = '';
+    const b = step(emptyBoard(), (d) => {
+      top = createGroup(d, 0, 0, roomWidth(1), 300);
+      below = createGroup(d, 0, heightFor(1) + ROOM_GAP, roomWidth(3), 300);
     });
-    expect(roomMinSize(b, gid).w).toBe(600);
+    const s = step(b, (d) => {
+      createItem(d, PAD, HEAD + PAD);
+      createItem(d, PAD, 2000, { room: top });
+    });
+    expect(s.groups[top].h).toBe(heightFor(2));
+    expect(s.groups[below].y).toBe(heightFor(2) + ROOM_GAP);
+    expect(apart(s)).toBe(true);
+  });
+
+  it('leaves rooms that do not touch where they are', () => {
+    let far = '';
+    const b = step(emptyBoard(), (d) => {
+      createGroup(d, 0, 0, roomWidth(1), 300);
+      far = createGroup(d, 3000, 3000, roomWidth(1), 300);
+    });
+    const s = step(b, (d) => {
+      createItem(d, PAD, HEAD + PAD);
+    });
+    expect(s.groups[far]).toMatchObject({ x: 3000, y: 3000 });
   });
 });
 
@@ -400,6 +467,49 @@ describe('stacks', () => {
     });
     expect(stackMap(s).size).toBe(0);
     expect(s.items[ids[1]].x).toBe(1000 + CARD_W + GAP + 60);
+  });
+
+  it('puts a detached card beside its stack without landing on another card', () => {
+    const ids: string[] = [];
+    const b = boardWith((d) => {
+      ids.push(createItem(d, 0, 0), createItem(d, 2000, 0));
+      d.items[ids[1]].x = CARD_W + GAP + 60; // right where the detached card would go
+      joinStack(d, [createItem(d, 3000, 0)], ids[0]);
+    });
+    const alt = Object.keys(b.items).find((i) => !ids.includes(i))!;
+    const s = produce(b, (d) => {
+      detachFromStack(d, alt);
+    });
+    const p = s.items[alt];
+    const q = s.items[ids[1]];
+    const apart =
+      p.x >= q.x + CARD_W + MIN_GAP ||
+      q.x >= p.x + CARD_W + MIN_GAP ||
+      p.y >= q.y + CARD_H + MIN_GAP ||
+      q.y >= p.y + CARD_H + MIN_GAP;
+    expect(apart).toBe(true);
+  });
+
+  it('puts a card taken out of a stack in a room at the end of the room', () => {
+    let gid = '';
+    const ids: string[] = [];
+    const b = produce(emptyBoard(), (d) => {
+      gid = createGroup(d, 0, 0, roomWidth(3), 300);
+      ids.push(createItem(d, PAD, HEAD + PAD), createItem(d, PAD + CARD_W + GAP, HEAD + PAD));
+      addAlternative(d, ids[0]);
+      arrange(d, emptyBoard());
+    });
+    const alt = Object.keys(b.items).find((i) => !ids.includes(i))!;
+    const s = produce(b, (d) => {
+      detachFromStack(d, ids[0]);
+      arrange(d, b);
+    });
+    const g = s.groups[gid];
+    expect(stackMap(s).size).toBe(0);
+    expect(s.items[alt]).toMatchObject({ x: g.x + PAD, y: g.y + HEAD + PAD });
+    expect(s.items[ids[1]]).toMatchObject({ x: g.x + PAD + CARD_W + GAP });
+    expect(s.items[ids[0]]).toMatchObject({ x: g.x + PAD + 2 * (CARD_W + GAP), y: g.y + HEAD + PAD });
+    expect(s.items[ids[0]].room).toBe(gid);
   });
 });
 

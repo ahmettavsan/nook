@@ -9,6 +9,10 @@ export const PAD = 20;
 export const GAP = 32;
 /** Smallest space allowed between two cards that are not alternatives of each other. */
 export const MIN_GAP = 16;
+/** Space kept between two rooms; a room moved or grown into another pushes it away by this much. */
+export const ROOM_GAP = 40;
+/** Most cards a room can have side by side. */
+export const MAX_COLS = 8;
 
 export const ZOOM_MIN = 0.2;
 export const ZOOM_MAX = 2.5;

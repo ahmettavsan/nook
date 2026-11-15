@@ -17,6 +17,7 @@ export function World() {
   const sel = useAppStore(selectedId);
   const draggingIds = useAppStore((s) => s.draggingIds);
   const dropTarget = useAppStore((s) => s.dropTarget);
+  const dropRoom = useAppStore((s) => s.dropRoom);
   const ghost = useAppStore((s) => s.ghost);
   const animating = useAppStore((s) => s.animating);
   const selectedClip = useAppStore((s) => s.selectedClip);
@@ -61,6 +62,8 @@ export function World() {
             group={g}
             stat={stats.rooms.get(id) || EMPTY_STAT}
             selected={sel === id}
+            dragging={!!draggingIds?.has(id)}
+            dropInto={dropRoom === id}
           />
         ))}
       </div>

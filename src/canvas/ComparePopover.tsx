@@ -1,13 +1,18 @@
 import { useEffect } from 'react';
-import { CameraIcon, CloseIcon, StatusIcon } from '../components/icons';
+import { CloseIcon, StatusIcon } from '../components/icons';
+import { ItemArt } from '../components/ItemArt';
 import { STATUS } from '../domain/constants';
 import { fmt, safeImg, total } from '../domain/format';
 import { stackOf } from '../domain/stacks';
-import { closeCompare } from '../store/actions';
+import { closeCompare, detachFromStack, removeItem, toast } from '../store/actions';
 import { useAppStore } from '../store/appStore';
+import { undo } from '../store/history';
 import { useCardPopover } from './useCardPopover';
 
-/** Every option of an alternatives stack side by side, opened with ⌘/Ctrl + click or the "N seçenek" badge. */
+/**
+ * Every option of an alternatives stack side by side, opened with ⌘/Ctrl + click or the "N seçenek" badge.
+ * Each option can be taken out of the stack (it becomes a card of its own) or deleted.
+ */
 export function ComparePopover() {
   const id = useAppStore((s) => s.compare);
   const board = useAppStore((s) => s.board);
@@ -44,7 +49,9 @@ export function ComparePopover() {
           const qty = Number(it.qty) || 1;
           return (
             <div key={i} className={`cmp-opt s-${it.status}`}>
-              <div className="cmp-img">{safeImg(it.img) ? <img src={it.img} alt="" /> : <CameraIcon />}</div>
+              <div className="cmp-img">
+                {safeImg(it.img) ? <img src={it.img} alt="" /> : <ItemArt name={it.name} />}
+              </div>
               {cheapest !== null && totals[n] === cheapest && <span className="cmp-best">En uygun</span>}
               <div className="cmp-name">{it.name || 'İsimsiz eşya'}</div>
               {it.note && <div className="cmp-note">{it.note}</div>}
@@ -56,6 +63,26 @@ export function ComparePopover() {
                 <StatusIcon status={it.status} />
                 {STATUS[it.status]}
               </span>
+              <div className="cmp-acts">
+                <button
+                  type="button"
+                  title="Alternatiflerden çıkar"
+                  onClick={() => detachFromStack(i, false)}
+                >
+                  Çıkar
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  title="Kartı sil"
+                  onClick={() => {
+                    removeItem(i);
+                    toast('Eşya silindi.', { label: 'Geri al', run: undo });
+                  }}
+                >
+                  Sil
+                </button>
+              </div>
             </div>
           );
         })}

@@ -1,6 +1,7 @@
 import { produce } from 'immer';
 import { create } from 'zustand';
 import type { Board, Filter, Rect, Tool, View } from '../domain/types';
+import { arrange } from '../domain/arrange';
 import { emptyBoard } from '../domain/board';
 import { readPrefs } from './persistence';
 
@@ -13,6 +14,15 @@ export interface DrawerState {
   focus?: string;
   /** Bumped on every open so the drawer content remounts, like the original rebuild. */
   seq: number;
+}
+
+/** The right-click menu: where it opened (on screen and on the board) and what was under the pointer. */
+export interface MenuState {
+  x: number;
+  y: number;
+  at: { x: number; y: number };
+  kind: 'board' | 'room' | 'card';
+  id?: string;
 }
 
 export interface ToastState {
@@ -42,11 +52,16 @@ export interface AppState {
   tool: Tool;
   filter: Filter;
   hideUnmatched: boolean;
+  /** The one-time tip about double-click and right-click was seen or dismissed. */
+  tipSeen: boolean;
+  menu: MenuState | null;
   drawer: DrawerState | null;
   /** The user dismissed the empty state (started blank or added something). */
   blank: boolean;
   /** Card under the dragged card, which would receive it as an alternative. */
   dropTarget: string | null;
+  /** Another room the dragged card would move into if dropped now. */
+  dropRoom: string | null;
   /** Ids being dragged (only once the pointer actually moved). */
   draggingIds: ReadonlySet<string> | null;
   /** Room outline while drawing a room, in world coordinates. */
@@ -82,9 +97,12 @@ export const useAppStore = create<AppState>()(() => ({
   tool: 'select',
   filter: 'all',
   hideUnmatched: prefs.hideUnmatched,
+  tipSeen: prefs.tipSeen,
+  menu: null,
   drawer: null,
   blank: false,
   dropTarget: null,
+  dropRoom: null,
   draggingIds: null,
   ghost: null,
   panning: false,
@@ -103,12 +121,17 @@ export const getState = useAppStore.getState;
 export const setState = useAppStore.setState;
 
 /**
- * The single way to change board data. Runs `recipe` with Immer and stamps `updatedAt`
- * on every card it touched.
+ * The single way to change board data. Runs `recipe` with Immer, then puts cards back in their rooms'
+ * grids and keeps rooms apart (domain/arrange.ts), and stamps `updatedAt` on every card it touched.
+ * `root` is a room being dragged or resized: it stays put and the other rooms make way for it.
  */
-export function updateBoard(recipe: (board: Board) => void): void {
+export function updateBoard(recipe: (board: Board) => void, root?: string): void {
   const prev = getState().board;
-  let next = produce(prev, recipe);
+  const held = getState().draggingIds;
+  let next = produce(prev, (d) => {
+    recipe(d);
+    arrange(d, prev, held, root);
+  });
   if (next === prev) return;
   const changed = Object.keys(next.items).filter((id) => next.items[id] !== prev.items[id]);
   if (changed.length) {

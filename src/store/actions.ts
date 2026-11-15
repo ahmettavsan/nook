@@ -1,14 +1,15 @@
 import * as B from '../domain/board';
 import { CARD_H, CARD_W, DELIVERY_ORDER, STATUS_ORDER } from '../domain/constants';
-import { adoptLooseCards, freeSlot } from '../domain/geometry';
+import { endOfRoom } from '../domain/arrange';
+import { adoptLooseCards } from '../domain/geometry';
 import { layoutSnapshot, restoreLayout, tidy, type LayoutSnapshot } from '../domain/layout';
 import * as St from '../domain/stacks';
 import { safeImg, uid } from '../domain/format';
 import type { Board, Clip, Delivery, Filter, Group, Item, Priority, Status, Tool } from '../domain/types';
 import { cutOut } from '../lib/cutout';
 import { isImageFile, shrinkImage } from '../lib/image';
-import { getState, setState, updateBoard, type DrawerType } from './appStore';
-import { writeHideUnmatched } from './persistence';
+import { getState, setState, updateBoard, type DrawerType, type MenuState } from './appStore';
+import { writeHideUnmatched, writeTipSeen } from './persistence';
 import { fitAll, focusOn, pointerWorld } from './viewActions';
 
 /* User-level operations. Components and gesture handlers call these; they never touch the board directly. */
@@ -36,6 +37,20 @@ export const closeAuth = () => setState({ authScreen: null });
 export function toggleSummary(): void {
   if (getState().drawer?.type === 'summary') closeDrawer();
   else openDrawer('summary');
+}
+
+export function openMenu(menu: MenuState): void {
+  setState({ menu, quickPay: null, compare: null });
+  markTipSeen();
+}
+
+export const closeMenu = () => setState({ menu: null });
+
+/** The tip about double-click and right-click is not shown again once used or dismissed. */
+export function markTipSeen(): void {
+  if (getState().tipSeen) return;
+  setState({ tipSeen: true });
+  writeTipSeen();
 }
 
 export function setTool(tool: Tool): void {
@@ -70,14 +85,17 @@ export function createItemAt(x: number, y: number, extra?: Partial<Item>): strin
 }
 
 export function createItemInRoom(gid: string): void {
-  let p = { x: 0, y: 0 };
   let id = '';
   updateBoard((b) => {
-    p = freeSlot(b, gid);
-    id = B.createItem(b, p.x, p.y);
+    const g = b.groups[gid];
+    if (!g) return;
+    const p = endOfRoom(g);
+    id = B.createItem(b, p.x, p.y, { room: gid });
   });
+  const it = getState().board.items[id];
+  if (!it) return;
   openDrawer('item', id, 'name');
-  focusOn(p.x, p.y, CARD_W, CARD_H);
+  focusOn(it.x, it.y, CARD_W, CARD_H);
 }
 
 export function createGroupAt(x: number, y: number, w: number, h: number): string {
@@ -243,15 +261,16 @@ export function addAlternative(id: string): void {
   toast('Yeni seçenek yığının önüne eklendi. Fotoğrafını ve fiyatını gir.');
 }
 
-export function detachFromStack(id: string): void {
+/** Takes a card out of its alternatives; `open` shows it in the inspector afterwards. */
+export function detachFromStack(id: string, open = true): void {
   let done = false;
   updateBoard((b) => {
     done = B.detachFromStack(b, id);
   });
   if (!done) return;
   animateLayout();
-  openDrawer('item', id);
-  toast('Kart yığından çıkarıldı.');
+  if (open) openDrawer('item', id);
+  toast('Kart alternatiflerden çıkarıldı.');
 }
 
 /* ---------- photo cut-outs ---------- */

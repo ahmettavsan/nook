@@ -1,6 +1,7 @@
+import { colsForWidth, endOfRoom } from './arrange';
 import { CARD_W, CHIPS, GAP } from './constants';
 import { uid } from './format';
-import { assignRoom, bounds, freeSlot, roomAt, roomOf, settleCard } from './geometry';
+import { assignRoom, bounds, roomAt, roomOf, settleCard } from './geometry';
 import { settleStack, stackOf } from './stacks';
 import type { Board, Item } from './types';
 
@@ -28,10 +29,10 @@ export function createItem(board: Board, x: number, y: number, extra: Partial<It
     ...extra,
   };
   // A new alternative shares its stack's spot (and room) on purpose; every other new card joins the room
-  // it was created in and gets a clear spot there.
+  // it was created in (where the room's grid places it) or, outside rooms, gets a clear spot.
   if (!extra.stack) {
     if (extra.room === undefined) assignRoom(board, [id], id);
-    settleCard(board, [id], id);
+    if (!roomOf(board, board.items[id])) settleCard(board, [id], id);
   }
   return id;
 }
@@ -47,6 +48,7 @@ export function createGroup(
 ): string {
   const id = uid();
   const used = new Set(Object.values(board.groups).map((g) => g.color));
+  // The width only picks the number of columns; the room's size then follows its cards.
   board.groups[id] = {
     name: name || 'Yeni oda',
     color: color || CHIPS.find((c) => !used.has(c)) || CHIPS[Object.keys(board.groups).length % CHIPS.length],
@@ -54,6 +56,7 @@ export function createGroup(
     y: Math.round(y),
     w: Math.round(w),
     h: Math.round(h),
+    cols: colsForWidth(w),
   };
   return id;
 }
@@ -85,7 +88,7 @@ export function addAlternative(board: Board, id: string): string | null {
   });
 }
 
-/** Takes a card out of its stack and puts it in the next free slot of its room (or beside it). */
+/** Takes a card out of its stack and puts it at the end of its room (or beside it). */
 export function detachFromStack(board: Board, id: string): boolean {
   const it = board.items[id];
   if (!it || !it.stack) return false;
@@ -93,18 +96,20 @@ export function detachFromStack(board: Board, id: string): boolean {
   it.stack = '';
   it.so = 0;
   const room = roomOf(board, it);
-  const p = room ? freeSlot(board, room, id) : { x: it.x + CARD_W + GAP + 60, y: it.y };
+  const p = room ? endOfRoom(board.groups[room]) : { x: it.x + CARD_W + GAP + 60, y: it.y };
   it.x = p.x;
   it.y = p.y;
   settleStack(board, sid);
+  // Outside rooms it goes next to its old stack, clear of any card already there.
+  if (!room) settleCard(board, [id], id);
   return true;
 }
 
-/** Moves a card (with its alternatives) into a room's free slot, or to the right of everything when `gid` is empty. */
+/** Moves a card (with its alternatives) to the end of a room, or to the right of everything when `gid` is empty. */
 export function moveToRoom(board: Board, id: string, gid: string): void {
   if (!board.items[id]) return;
   let p: { x: number; y: number };
-  if (gid) p = freeSlot(board, gid, id);
+  if (gid) p = endOfRoom(board.groups[gid]);
   else {
     const b = bounds(board);
     p = { x: (b ? b.x2 : 0) + 60, y: b ? b.y1 : 0 };

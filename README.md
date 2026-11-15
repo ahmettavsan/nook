@@ -2,6 +2,8 @@
 
 Yeni eve taşınırken ya da evlenirken alınacak eşyaları oda oda planlamak için Freeform tarzı bir pano. Odaları çerçeve olarak çizer, eşyaları kart olarak içine bırakırsın; neyin alındığını, neyin yolda olduğunu ve ne kadar harcadığını tek bakışta görürsün.
 
+Kartlar odanın içinde sıra sıra dizilir ve oda kartlarına göre büyüyüp küçülür. Yan yana kaç kart duracağını odanın sağ alt köşesini sürükleyerek seçersin. Odalar birbirinin üstüne binmez: taşınan ya da büyüyen bir oda diğerlerini kenara iter.
+
 Uygulama kayıt olmadan açılır; pano o zaman bu tarayıcıda saklanır. Panoyu kalıcı olarak saklamak ve her cihazdan açmak için Google ya da e-posta/şifreyle kayıt olunur. React + TypeScript + Vite ile yazılmıştır; hesaplar ve veriler Supabase'te durur.
 
 ## Çalıştırma
@@ -79,17 +81,19 @@ Proje adresi ve yayınlanabilir (publishable) anahtar `.env` dosyasındadır; ik
 
 ## Kısayollar
 
-| Tuş                                             | İşlev                                                           |
-| ----------------------------------------------- | --------------------------------------------------------------- |
-| `V`                                             | Seç ve taşı                                                     |
-| `H`                                             | Kaydır                                                          |
-| `Boşluk` (basılı)                               | Geçici olarak kaydır                                            |
-| `N`                                             | Eşya ekle                                                       |
-| `R`                                             | Oda çiz                                                         |
-| `Shift + 1`                                     | Tümünü göster                                                   |
-| `+` / `-`                                       | Yakınlaştır / uzaklaştır                                        |
-| `⌘ / Ctrl + X`, sağ tık ya da çift tık (kartta) | Eşyanın fotoğrafını küpür olarak kes; tıkladığın yere bırakılır |
-| `⌘ / Ctrl + Z`                                  | Geri al                                                         |
-| `⇧ ⌘ Z`, `Ctrl + Shift + Z` ya da `Ctrl + Y`    | Yinele                                                          |
-| `Delete`                                        | Seçili eşyayı ya da küpürü sil                                  |
-| `Esc`                                           | Seçimi bırak, küpür bırakmaktan vazgeç                          |
+| Tuş                                          | İşlev                                                           |
+| -------------------------------------------- | --------------------------------------------------------------- |
+| `V`                                          | Seç ve taşı                                                     |
+| `H`                                          | Kaydır                                                          |
+| `Boşluk` (basılı)                            | Geçici olarak kaydır                                            |
+| `N`                                          | Eşya ekle                                                       |
+| `R`                                          | Oda çiz                                                         |
+| `Shift + 1`                                  | Tümünü göster                                                   |
+| `+` / `-`                                    | Yakınlaştır / uzaklaştır                                        |
+| `⌘ / Ctrl + X` ya da çift tık (kartta)       | Eşyanın fotoğrafını küpür olarak kes; tıkladığın yere bırakılır |
+| Çift tık (boş yerde)                         | Yeni eşya                                                       |
+| Sağ tık                                      | Boş panoda, odada ya da kartta o yere özel seçenekler           |
+| `⌘ / Ctrl + Z`                               | Geri al                                                         |
+| `⇧ ⌘ Z`, `Ctrl + Shift + Z` ya da `Ctrl + Y` | Yinele                                                          |
+| `Delete`                                     | Seçili eşyayı ya da küpürü sil                                  |
+| `Esc`                                        | Seçimi bırak, küpür bırakmaktan vazgeç                          |

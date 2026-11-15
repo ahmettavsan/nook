@@ -1,5 +1,6 @@
 import { memo, type MouseEvent } from 'react';
-import { ChevronLeft, ChevronRight, DeliveryIcon, LinkIcon, NoteIcon, StatusIcon } from '../components/icons';
+import { ChevronLeft, ChevronRight, DeliveryIcon, StatusIcon } from '../components/icons';
+import { ItemArt } from '../components/ItemArt';
 import { DELIV_SHORT, STATUS } from '../domain/constants';
 import { fmt, safeImg, total } from '../domain/format';
 import type { Item } from '../domain/types';
@@ -35,10 +36,10 @@ export const ItemCard = memo(function ItemCard(props: Props) {
   const hasImg = safeImg(it.img);
   const t = total(it);
   const dv = it.delivery || 'pending';
-  const qty = Number(it.qty) || 1;
 
+  // Every card shows a picture: its photo, or a drawing of the kind of item when it has none.
   const cls =
-    `tag${hasImg ? ' has-img' : ''} s-${it.status} d-${it.status === 'bought' ? dv : 'none'}` +
+    `tag has-img s-${it.status} d-${it.status === 'bought' ? dv : 'none'}` +
     (selected ? ' selected' : '') +
     (dragging ? ' dragging' : '') +
     (dim ? ' dim' : '') +
@@ -81,20 +82,10 @@ export const ItemCard = memo(function ItemCard(props: Props) {
         </div>
       )}
       {it.priority === 'urgent' && <span className="pri" title="Öncelikli" />}
-      {hasImg && (
-        <div className="t-img">
-          <img src={it.img} alt="" draggable={false} />
-        </div>
-      )}
+      <div className="t-img">
+        {hasImg ? <img src={it.img} alt="" draggable={false} /> : <ItemArt name={it.name} />}
+      </div>
       <div className="t-name">{it.name || 'İsimsiz eşya'}</div>
-      {!hasImg && (
-        <div className="t-sub">
-          {it.store && <span>{it.store}</span>}
-          {qty > 1 && <span>{`${qty} adet`}</span>}
-          {it.note && <NoteIcon />}
-          {it.link && <LinkIcon />}
-        </div>
-      )}
       <div className="t-price">{t ? fmt(t) : <span className="muted">fiyat?</span>}</div>
       <div className="t-foot">
         <button

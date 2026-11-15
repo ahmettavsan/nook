@@ -1,5 +1,6 @@
 import { produce } from 'immer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { arrange } from '../domain/arrange';
 import { createGroup, createItem, emptyBoard } from '../domain/board';
 import type { Board } from '../domain/types';
 
@@ -50,12 +51,14 @@ const { fetchBoard, resetCloud, storeBoard } = await import('./cloud');
 
 const IMG = (n: number) => `data:image/jpeg;base64,${'A'.repeat(n)}`;
 
+/** A board as the app saves it: built, then arranged the way `updateBoard` does. */
 function sampleBoard(): Board {
   return produce(emptyBoard(), (d) => {
     createGroup(d, 0, 0, 700, 500, 'Salon');
     createItem(d, 20, 120, { name: 'Koltuk', img: IMG(10) });
     createItem(d, 300, 120, { name: 'Halı', img: IMG(20) });
     createItem(d, 20, 400, { name: 'Lamba' });
+    arrange(d, emptyBoard());
   });
 }
 

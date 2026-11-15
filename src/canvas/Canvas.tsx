@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { FilterPanel } from '../components/FilterPanel';
 import { StatBar } from '../components/StatBar';
+import { Tip } from '../components/Tip';
 import { Toast } from '../components/Toast';
 import { ZoomControls } from '../components/ZoomControls';
 import { Drawer } from '../components/drawer/Drawer';
@@ -11,6 +12,7 @@ import { getState, useAppStore } from '../store/appStore';
 import { fitAll, registerViewport, toWorld } from '../store/viewActions';
 import { ClipToolbar } from './ClipToolbar';
 import { ComparePopover } from './ComparePopover';
+import { ContextMenu } from './ContextMenu';
 import { QuickPayPopover } from './QuickPayPopover';
 import { useCanvasGestures } from './useCanvasGestures';
 import { World } from './World';
@@ -76,6 +78,8 @@ export function Canvas() {
       <QuickPayPopover />
       <ComparePopover />
       <ClipToolbar />
+      <ContextMenu />
+      <Tip />
       <Toast />
     </main>
   );

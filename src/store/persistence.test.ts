@@ -39,6 +39,22 @@ describe('saved boards', () => {
     expect(board.items.b.room).toBe('');
   });
 
+  it('turns hand-sized rooms into rooms sized by their cards, pulled apart', () => {
+    const board = normalizeBoard({
+      groups: {
+        a: { name: 'Salon', color: '#f00', x: 0, y: 0, w: 700, h: 900 },
+        b: { name: 'Mutfak', color: '#0f0', x: 300, y: 100, w: 470, h: 400 },
+      },
+      items: { k: { name: 'Koltuk', x: 400, y: 600, room: 'a' } },
+    });
+    const { a, b } = board.groups;
+    expect(a.cols).toBe(3);
+    expect(b.cols).toBe(2);
+    expect(board.items.k).toMatchObject({ x: a.x + 20, y: a.y + 116 });
+    const apart = a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y;
+    expect(apart).toBe(true);
+  });
+
   it('fills in what older boards are missing', () => {
     const board = normalizeBoard({ items: {} });
     expect(board.clips).toEqual({});

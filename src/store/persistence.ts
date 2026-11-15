@@ -1,3 +1,4 @@
+import { colsForWidth, layoutRooms, separateRooms } from '../domain/arrange';
 import { STATUS } from '../domain/constants';
 import { roomAt } from '../domain/geometry';
 import type { Board, Item } from '../domain/types';
@@ -10,6 +11,7 @@ import type { Board, Item } from '../domain/types';
 /** Where this browser keeps the board without an account; the first key is written, the app's older names are still read. */
 const LOCAL_KEYS = ['nook-board-v1', 'norre-board-v1', 'yuvamiz-board-v1'];
 const PREF_HIDE_UNMATCHED = 'nook-hide';
+const PREF_TIP_SEEN = 'nook-tip-seen';
 
 interface RawBoard {
   groups?: Board['groups'];
@@ -53,6 +55,12 @@ function toBoard(d: RawBoard): Board {
   // Older boards did not store a card's room: it was whichever room the card was drawn in.
   for (const it of Object.values(board.items))
     if (typeof it.room !== 'string') it.room = roomAt(board, it) || '';
+  // Older rooms were sized by hand: keep as many columns as fitted, then follow the current rules
+  // (cards in the room's grid, the room sized to them, rooms apart).
+  for (const [id, g] of Object.entries(board.groups))
+    if (typeof g.cols !== 'number') board.groups[id] = { ...g, cols: colsForWidth(g.w) };
+  layoutRooms(board);
+  separateRooms(board, []);
   return board;
 }
 
@@ -85,17 +93,28 @@ export function clearLocalBoard(): void {
   }
 }
 
-export function readPrefs(): { hideUnmatched: boolean } {
+export function readPrefs(): { hideUnmatched: boolean; tipSeen: boolean } {
   try {
-    return { hideUnmatched: localStorage.getItem(PREF_HIDE_UNMATCHED) === '1' };
+    return {
+      hideUnmatched: localStorage.getItem(PREF_HIDE_UNMATCHED) === '1',
+      tipSeen: localStorage.getItem(PREF_TIP_SEEN) === '1',
+    };
   } catch {
-    return { hideUnmatched: false };
+    return { hideUnmatched: false, tipSeen: false };
   }
 }
 
 export function writeHideUnmatched(value: boolean): void {
   try {
     localStorage.setItem(PREF_HIDE_UNMATCHED, value ? '1' : '');
+  } catch {
+    /* ignore */
+  }
+}
+
+export function writeTipSeen(): void {
+  try {
+    localStorage.setItem(PREF_TIP_SEEN, '1');
   } catch {
     /* ignore */
   }

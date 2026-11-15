@@ -47,8 +47,11 @@ export interface Group {
   color: string;
   x: number;
   y: number;
+  /** Size follows from `cols` and the number of cards (see domain/arrange.ts); it is never set by hand. */
   w: number;
   h: number;
+  /** How many cards sit side by side; the user picks it by dragging the room's corner. */
+  cols: number;
 }
 
 /** A cut-out of a product photo, placed freely on the board (a mood board "clipping"). */

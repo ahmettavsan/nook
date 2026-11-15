@@ -3,7 +3,7 @@ import { STATUS } from '../../domain/constants';
 import { stackOf } from '../../domain/stacks';
 import { addAlternative, bringFront, detachFromStack, openDrawer } from '../../store/actions';
 import { useAppStore } from '../../store/appStore';
-import { CameraIcon } from '../icons';
+import { ItemArt } from '../ItemArt';
 
 export function AlternativesBox({ id }: { id: string }) {
   const board = useAppStore((s) => s.board);
@@ -28,7 +28,7 @@ export function AlternativesBox({ id }: { id: string }) {
                 }}
               >
                 <span className="alt-thumb">
-                  {safeImg(x.img) ? <img src={x.img} alt="" /> : <CameraIcon />}
+                  {safeImg(x.img) ? <img src={x.img} alt="" /> : <ItemArt name={x.name} />}
                 </span>
                 <span className="alt-name">{x.name || 'İsimsiz eşya'}</span>
                 <span
