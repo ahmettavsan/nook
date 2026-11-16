@@ -54,6 +54,8 @@ export interface AppState {
   hideUnmatched: boolean;
   /** The one-time tip about double-click and right-click was seen or dismissed. */
   tipSeen: boolean;
+  /** On a phone, show the board as a list (the default) instead of the whiteboard. */
+  listView: boolean;
   menu: MenuState | null;
   drawer: DrawerState | null;
   /** The user dismissed the empty state (started blank or added something). */
@@ -98,6 +100,7 @@ export const useAppStore = create<AppState>()(() => ({
   filter: 'all',
   hideUnmatched: prefs.hideUnmatched,
   tipSeen: prefs.tipSeen,
+  listView: true,
   menu: null,
   drawer: null,
   blank: false,

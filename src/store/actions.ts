@@ -57,6 +57,8 @@ export function setTool(tool: Tool): void {
   setState({ tool });
 }
 
+export const setListView = (listView: boolean) => setState({ listView, menu: null });
+
 export function setFilter(filter: Filter): void {
   setState({ filter });
 }

@@ -767,7 +767,8 @@ button {
   background: rgba(0, 0, 0, 0.08);
   color: rgba(0, 0, 0, 0.75);
 }
-.pill-btn:hover {
+/* The status pill keeps its colour on hover (and after a tap on touch screens). */
+.pill-btn:not([data-act='status']):hover {
   background: rgba(0, 0, 0, 0.13);
 }
 .pill-btn svg {
@@ -2327,4 +2328,350 @@ textarea.input {
   .tip {
     bottom: 84px;
   }
+}
+
+/* ---------- list view (phones) ---------- */
+.view-switch {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--fill);
+}
+.view-switch button {
+  height: 28px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.view-switch button[aria-pressed='true'] {
+  background: var(--chrome);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  cursor: default;
+}
+.list-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.lv-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+}
+.list-view .statbar {
+  position: static;
+  margin: 12px 16px 0;
+}
+.list-view .statbar .stat {
+  flex: 1;
+  min-width: 0;
+}
+.list-view .statbar .stat.opt {
+  display: flex;
+}
+.lv-chips {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.lv-chips::-webkit-scrollbar {
+  display: none;
+}
+.lv-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--chrome);
+  box-shadow: inset 0 0 0 1px var(--hair);
+  font-size: 13px;
+  cursor: pointer;
+}
+.lv-chip i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.lv-chip span {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.lv-chip.zero {
+  color: var(--ink-3);
+}
+.lv-chip[aria-checked='true'] {
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+.lv-room {
+  margin-top: 8px;
+}
+.lv-room-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  background: var(--canvas);
+  border-bottom: 1px solid var(--hair);
+}
+.lv-room-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 4px 0 16px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.lv-room-toggle svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-3);
+  transition: transform 0.15s;
+}
+.lv-room-toggle[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+.lv-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.lv-room-name,
+.lv-loose {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+.lv-loose {
+  cursor: default;
+}
+.lv-room-meta {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.lv-room-head .tbtn {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  margin-right: 4px;
+}
+.lv-room-head .tbtn svg {
+  width: 18px;
+  height: 18px;
+}
+.lv-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--hair);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lv-item:active,
+.lv-item.selected {
+  background: var(--fill);
+}
+.lv-thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+.lv-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+.lv-thumb .item-art {
+  width: 40px;
+  height: 40px;
+}
+.lv-text {
+  flex: 1;
+  min-width: 0;
+}
+.lv-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 500;
+}
+.lv-pri {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  vertical-align: 2px;
+}
+.lv-sub {
+  margin-top: 2px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.lv-sub .muted {
+  color: var(--ink-3);
+}
+.lv-opts {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 8px;
+  padding: 2px 6px 2px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--fill);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.lv-opts svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ink-2);
+  transition: transform 0.15s;
+}
+.lv-opts[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+/* Alternatives sit under their card, indented by a thumbnail's width, on a faint ground. */
+.lv-alts {
+  background: var(--fill);
+}
+.lv-item.lv-alt {
+  min-height: 56px;
+  padding-left: 40px;
+}
+.lv-alt .lv-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+}
+.lv-alt .lv-thumb .item-art {
+  width: 28px;
+  height: 28px;
+}
+.lv-alt .lv-name {
+  font-size: 14px;
+}
+.lv-alts .lv-item.selected,
+.lv-alts .lv-item:active {
+  background: var(--fill-2);
+}
+.lv-add.lv-alt {
+  padding-left: 40px;
+}
+.lv-add.lv-alt span {
+  width: 40px;
+}
+.lv-pills {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.lv-pills .pill-btn {
+  padding: 6px 10px 6px 8px;
+  font-size: 12px;
+}
+.lv-add {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-bottom: 1px solid var(--hair);
+  background: transparent;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.lv-add span {
+  width: 56px;
+  font-size: 20px;
+  font-weight: 400;
+  text-align: center;
+}
+.lv-add-room {
+  display: block;
+  width: calc(100% - 32px);
+  height: 44px;
+  margin: 24px 16px 0;
+}
+.lv-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+  margin: 0 auto;
+  padding: 64px 24px;
+  text-align: center;
+}
+.lv-empty h1 {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 1;
+}
+.lv-empty p {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.lv-empty .btn {
+  height: 44px;
+}
+.quick-pay.docked {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: auto;
+  max-height: 72%;
 }

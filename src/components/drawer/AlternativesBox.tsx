@@ -52,7 +52,7 @@ export function AlternativesBox({ id }: { id: string }) {
           Alternatif ekle
         </button>
         <button type="button" className="btn" hidden={!st} onClick={() => detachFromStack(id)}>
-          Yığından çıkar
+          Alternatiflerden çıkar
         </button>
       </div>
     </div>

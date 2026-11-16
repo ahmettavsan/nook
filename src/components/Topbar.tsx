@@ -1,5 +1,6 @@
 import type { Tool } from '../domain/types';
-import { openAuth, setTool, tidyAll, toggleSummary } from '../store/actions';
+import { useListMode, useNarrow } from '../hooks/useListMode';
+import { openAuth, setListView, setTool, tidyAll, toggleSummary } from '../store/actions';
 import { useAppStore } from '../store/appStore';
 import { AccountMenu } from './AccountMenu';
 import { HomeIcon } from './icons';
@@ -68,7 +69,40 @@ function Account() {
   );
 }
 
+/** On a phone, in the list view: switch back to the whiteboard. */
+function ViewSwitch() {
+  return (
+    <div className="view-switch" role="group" aria-label="Görünüm">
+      <button type="button" aria-pressed={false} onClick={() => setListView(false)}>
+        Pano
+      </button>
+      <button type="button" aria-pressed={true}>
+        Liste
+      </button>
+    </div>
+  );
+}
+
 export function Topbar() {
+  const narrow = useNarrow();
+  const list = useListMode();
+  if (list) {
+    return (
+      <header className="topbar">
+        <div className="tb-left">
+          <HomeIcon />
+          <span className="title">nook</span>
+          <SaveStatus />
+        </div>
+        <div className="tb-center">
+          <ViewSwitch />
+        </div>
+        <div className="tb-right">
+          <Account />
+        </div>
+      </header>
+    );
+  }
   return (
     <header className="topbar">
       <div className="tb-left">
@@ -77,6 +111,30 @@ export function Topbar() {
         <SaveStatus />
       </div>
       <div className="tb-center" role="toolbar" aria-label="Araçlar">
+        {narrow && (
+          <>
+            <button
+              className="tbtn"
+              title="Liste görünümü"
+              aria-label="Liste görünümü"
+              onClick={() => setListView(true)}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              >
+                <path d="M9 6.5h11M9 12h11M9 17.5h11" />
+                <circle cx="4.5" cy="6.5" r="0.6" fill="currentColor" />
+                <circle cx="4.5" cy="12" r="0.6" fill="currentColor" />
+                <circle cx="4.5" cy="17.5" r="0.6" fill="currentColor" />
+              </svg>
+            </button>
+            <span className="tsep" />
+          </>
+        )}
         <ToolButton tool="select" title="Seç ve taşı (V)" label="Seç">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
             <path d="M6 3.5 18.5 10l-5.6 1.9-2 5.6z" />
@@ -130,12 +188,21 @@ export function Topbar() {
         </button>
       </div>
       <div className="tb-right">
-        <button className="tbtn" title="Özet ve bütçe" aria-label="Özet" onClick={toggleSummary}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <circle cx="12" cy="12" r="8.5" />
-            <path d="M12 3.5V12l6 6" />
-          </svg>
-        </button>
+        {/* On a phone the list switch takes its place; the spent total on the board opens the summary too. */}
+        {!narrow && (
+          <button className="tbtn" title="Özet ve bütçe" aria-label="Özet" onClick={toggleSummary}>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            >
+              <circle cx="12" cy="12" r="8.5" />
+              <path d="M12 3.5V12l6 6" />
+            </svg>
+          </button>
+        )}
         <Account />
       </div>
     </header>

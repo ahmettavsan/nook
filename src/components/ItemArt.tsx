@@ -108,7 +108,7 @@ const ART: Record<ArtKind, [string, string]> = {
 export function ItemArt({ name }: { name: string }) {
   const [body, fill] = ART[artFor(name)];
   return (
-    <svg className="item-art" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
+    <svg className="item-art" viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true">
       <path d={fill} />
       <path className="item-art-line" d={body} />
     </svg>

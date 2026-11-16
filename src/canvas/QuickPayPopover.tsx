@@ -10,8 +10,9 @@ import { useCardPopover } from './useCardPopover';
 /**
  * Small form that pops up under a card right after it is marked as bought, for price and payment details.
  * Drawn in screen space (stays readable at any zoom) and follows the card while the board pans.
+ * `docked` pins it to the bottom of the screen instead, for the list view where there is no card to follow.
  */
-export function QuickPayPopover() {
+export function QuickPayPopover({ docked = false }: { docked?: boolean }) {
   const id = useAppStore((s) => s.quickPay);
   const it = useAppStore((s) => (s.quickPay ? s.board.items[s.quickPay] : undefined));
   const open = !!id && !!it && it.status === 'bought';
@@ -37,10 +38,10 @@ export function QuickPayPopover() {
   return (
     <div
       ref={ref}
-      className="quick-pay glass"
+      className={'quick-pay glass' + (docked ? ' docked' : '')}
       role="dialog"
       aria-label={`${it.name || 'Eşya'} ödeme bilgileri`}
-      style={style}
+      style={docked ? undefined : style}
     >
       <div className="qp-head">
         <h3>{it.name || 'İsimsiz eşya'}</h3>

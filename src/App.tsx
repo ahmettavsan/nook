@@ -1,19 +1,22 @@
 import { AuthFrame, LoginScreen, NewPasswordScreen } from './auth/LoginScreen';
 import { Canvas } from './canvas/Canvas';
 import { HomeIcon } from './components/icons';
+import { ListView } from './components/ListView';
 import { Spinner } from './components/Spinner';
 import { Topbar } from './components/Topbar';
 import { CHIPS } from './domain/constants';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
+import { useListMode } from './hooks/useListMode';
 import { useAppStore } from './store/appStore';
 import { openBoard, signOut } from './store/session';
 
 function Board() {
   useGlobalShortcuts();
+  const list = useListMode();
   return (
     <>
       <Topbar />
-      <Canvas />
+      {list ? <ListView /> : <Canvas />}
     </>
   );
 }

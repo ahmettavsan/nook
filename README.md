@@ -4,6 +4,8 @@ Yeni eve taşınırken ya da evlenirken alınacak eşyaları oda oda planlamak i
 
 Kartlar odanın içinde sıra sıra dizilir ve oda kartlarına göre büyüyüp küçülür. Yan yana kaç kart duracağını odanın sağ alt köşesini sürükleyerek seçersin. Odalar birbirinin üstüne binmez: taşınan ya da büyüyen bir oda diğerlerini kenara iter.
 
+Telefonda pano liste olarak açılır: odalar bölüm, eşyalar satır olur. Durum etiketine dokununca durum değişir, satıra dokununca eşya alttan açılan panelde düzenlenir. "2 seçenek" etiketine dokununca eşyanın alternatifleri satırın altında açılır. Üstteki "Pano | Liste" düğmesiyle panoya geçilebilir.
+
 Uygulama kayıt olmadan açılır; pano o zaman bu tarayıcıda saklanır. Panoyu kalıcı olarak saklamak ve her cihazdan açmak için Google ya da e-posta/şifreyle kayıt olunur. React + TypeScript + Vite ile yazılmıştır; hesaplar ve veriler Supabase'te durur.
 
 ## Çalıştırma
@@ -73,7 +75,7 @@ Proje adresi ve yayınlanabilir (publishable) anahtar `.env` dosyasındadır; ik
 
 ## İnternette yayınlama (GitHub Pages)
 
-`main` dalına her push'ta `.github/workflows/deploy.yml` testleri çalıştırır, uygulamayı derler ve `dist/` klasörünü `gh-pages` dalına koyar. Site https://ahmettavsan.github.io/norre/ adresinde yayınlanır. Build göreli yollarla üretildiği için bu alt yolda sorunsuz çalışır.
+`main` dalına her push'ta `.github/workflows/deploy.yml` testleri çalıştırır, uygulamayı derler ve `dist/` klasörünü `gh-pages` dalına koyar. Site https://ahmettavsan.github.io/nook/ adresinde yayınlanır. Build göreli yollarla üretildiği için bu alt yolda sorunsuz çalışır.
 
 ## Gizlilik ve telif notu
 
