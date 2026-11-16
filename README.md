@@ -34,7 +34,8 @@ src/
   store/       Uygulama durumu (Zustand + Immer), kullanıcı işlemleri, yakınlaştırma/kaydırma,
                oturum ve kaydetme (session.ts), Supabase okuma/yazma (cloud.ts)
   canvas/      Sonsuz pano: odalar, kartlar, sürükle/bırak/pinch hareketleri
-  components/  Üst çubuk, filtre paneli, alt bilgi çubuğu, boş ekran, bildirim, sağ panel (drawer)
+  components/  Üst çubuk, filtre paneli, alt bilgi çubuğu, boş ekran, bildirim, sağ panel (drawer),
+               telefon için liste görünümü (ListView.tsx)
   hooks/       Klavye kısayolları, yapıştırma, ortak türetilmiş veriler
   styles/      Global CSS (tasarımın kendisi)
 supabase/
@@ -63,7 +64,7 @@ Kayıt olmadan bu tarayıcıda hazırlanan pano, ilk girişte hesaba taşınır 
 Proje adresi ve yayınlanabilir (publishable) anahtar `.env` dosyasındadır; ikisi de tarayıcıya giden herkese açık değerlerdir. `service_role` / secret anahtarı asla bu dosyaya ya da repoya girmemelidir.
 
 1. Supabase panelinde **SQL Editor → New query** aç, `supabase/schema.sql` dosyasının içeriğini yapıştırıp çalıştır.
-2. **Authentication → URL Configuration**: Site URL `https://ahmettavsan.github.io/norre/`; Redirect URLs'e `https://ahmettavsan.github.io/norre/**` ve `http://localhost:5173/**` ekle.
+2. **Authentication → URL Configuration**: Site URL `https://ahmettavsan.github.io/nook/`; Redirect URLs'e `https://ahmettavsan.github.io/nook/**` ve `http://localhost:5173/**` ekle.
 3. Google ile giriş için Google Cloud Console'da bir OAuth istemcisi oluşturup **Authentication → Providers → Google**'a gir.
 
 ## Örnek pano (IKEA)
